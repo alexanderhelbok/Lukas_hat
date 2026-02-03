@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ESP32 Accelerometer - WebSocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+body { font-family: Arial, sans-serif; text-align:center; margin:20px; background:#f0f0f0; }
+h1 { color:#333; }
+h2 { color:#555; }
+button { padding:12px 24px; margin:8px; font-size:16px; border:none; border-radius:5px; cursor:pointer; }
+button:hover { opacity:0.8; }
+canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; height:200px; }
+.values { font-size:18px; font-weight:bold; color:#666; margin:20px 0; }
+.status { color:#4CAF50; font-weight:bold; }
+.phonon-container {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin: 20px 0;
+}
+
+.phonon-bar {
+  width: 60px;
+  height: 220px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  position: relative;
+  border: 1px solid #bbb;
+  margin-top: 25px;
+}
+
+/* Tick container */
+.phonon-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.phonon-tick {
+  position: absolute;
+  left: -8px;
+  width: 6px;
+  height: 0px;
+  background: #444;
+}
+
+.phonon-tick span {
+  position: absolute;
+  right: 8px;
+  top: -7px;
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+}
+
+.phonon-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 0%;
+  opacity: 0.85;
+  transition: height 0.25s ease;
+  border-radius: 0 0 8px 8px;
+}
+
+.phonon-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.phonon-fill.x { background: #e74c3c; }
+.phonon-fill.y { background: #2ecc71; }
+.phonon-fill.z { background: #3498db; }
+
+.phonon-label {
+  margin-top: 8px;
+  font-weight: bold;
+}
+
+.phonon-value {
+  position: absolute;
+  top: -28px;
+  width: 100%;
+  text-align: center;
+  font-weight: bold;
+  font-size: 16px;
+  color: #333;
+}
+</style>
+</head>
+<body>
+<!-- <h1>ESP32 Accelerometer</h1> -->
+
+<!-- Mode selection screen -->
+<div id="screen-mode">
+  <div id="status" class="status">Connecting WebSocket...</div>
+  <h2>Select mode</h2>
+  <button onclick="enterPlayer()" style="background:#4CAF50;color:white;">Player</button>
+  <button onclick="enterAdmin()" style="background:#f44336;color:white;">Admin</button>
+</div>
+
+<!-- Player screen -->
+<div id="screen-player" style="display:none;">
+  <h1>Welcome Lukas</h1>
+  <div id="playerMessage" style="
+    display:none;
+    position:fixed;
+    top:20px;
+    left:50%;
+    transform:translateX(-50%);
+    background:#222;
+    color:white;
+    padding:16px 24px;
+    border-radius:8px;
+    font-size:18px;
+    z-index:9999;
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition: opacity 0.3s ease;
+  ">
+  </div>
+
+  <canvas id="plot" width="400" height="200"></canvas>
+  <div class="phonon-container">
+    <div>
+      <div class="phonon-bar">
+        <div class="phonon-ticks" id="px-ticks"></div>
+
+        <div class="phonon-clip">
+          <div class="phonon-fill x" id="px-fill"></div>
+        </div>
+
+        <div class="phonon-value" id="px-val">0</div>
+      </div>
+      <div class="phonon-label">X</div>
+    </div>
+
+    <div>
+      <div class="phonon-bar">
+        <div class="phonon-value" id="py-val">0</div>
+        <div class="phonon-clip">
+          <div class="phonon-fill y" id="py-fill"></div>
+        </div>
+      </div>
+      <div class="phonon-label">Y</div>
+    </div>
+
+    <div>
+      <div class="phonon-bar">
+        <div class="phonon-value" id="pz-val">0</div>
+        <div class="phonon-clip">
+          <div class="phonon-fill z" id="pz-fill"></div>
+        </div>
+      </div>
+      <div class="phonon-label">Z</div>
+    </div>
+  </div>
+  <h2>n<sub>phonons</sub></h2>
+  <button onclick="backToMode()" style="background:#2196F3;color:white;">Back</button>
+</div>
+
+<!-- Admin screen -->
+<div id="screen-admin" style="display:none;">
+  <h2>Admin Panel</h2>
+  <div id="status" class="status">Connecting WebSocket...</div>
+
+  <button onclick="adminAction('start')" style="background:#4CAF50;color:white;">Start Game</button>
+  <button onclick="adminAction('stop')" style="background:#ff9800;color:white;">Stop Game</button>
+  <button onclick="adminAction('reset')" style="background:#f44336;color:white;">Reset Scores</button>
+
+  <hr>
+
+  <h3>Game Parameters</h3>
+  Period:
+  <input type="number" id="period" value="750"> ms<br><br>
+  Phonon scale:
+  <input type="number" id="phonon" value="300.0" step="0.1"><br><br>
+
+  <button onclick="setParams()" style="background:#673ab7;color:white;">
+    Apply Parameters
+  </button>
+
+  <hr>
+
+  <h3>Send Message to Player</h3>
+  <input type="text" id="adminMessage" placeholder="Message to player">
+  <button onclick="sendMessage()" style="background:#009688;color:white;">
+    Send
+  </button>
+
+  <button onclick="backToMode()" style="background:#2196F3;color:white;">Back</button>
+  <p id="admin-status" style="color:#f44336;font-weight:bold;"></p>
+</div>
+
+<script>
+let ws = null;
+let currentMode = null;
+let dataBuffer = [];
+const MAX_POINTS = 200;
+
+function setParams() {
+  const period = document.getElementById("period").value;
+  const phonon = document.getElementById("phonon").value;
+
+  fetch(`/admin?cmd=setParams&period=${period}&phonon=${phonon}`)
+    .then(r => r.text())
+    .then(t => document.getElementById("admin-status").innerText = t);
+}
+
+function sendMessage() {
+  const msg = document.getElementById("adminMessage").value;
+  fetch(`/admin?cmd=message&text=${encodeURIComponent(msg)}`)
+    .then(r => r.text())
+    .then(t => document.getElementById("admin-status").innerText = t);
+}
+
+function connectWebSocket() {
+  ws = new WebSocket('ws://' + window.location.hostname + ':81/');
+  
+  ws.onopen = () => {
+    document.getElementById('status').innerText = 'WebSocket Connected ✓';
+  };
+  
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    // Handle admin → player messages
+    if (data.type === "adminMessage") {
+      showPlayerMessage(data.text);
+      return;
+    }
+
+
+    // Otherwise assume it's accelerometer data
+    updatePlot(data);
+  };
+  
+  ws.onclose = () => {
+    document.getElementById('status').innerText = 'Reconnecting...';
+    setTimeout(connectWebSocket, 1000);
+  };
+  
+  ws.onerror = (e) => {
+    document.getElementById('status').innerText = 'Connection Error';
+  };
+}
+
+let lastValues = {x:0, y:0, z:0};
+function updatePlot(data) {
+  updatePhononBars(
+    data.nphonon_x || 0,
+    data.nphonon_y || 0,
+    data.nphonon_z || 0
+  );
+
+  const SMOOTH = 0.05;
+
+  lastValues.x += SMOOTH * (data.x - lastValues.x);
+  lastValues.y += SMOOTH * (data.y - lastValues.y);
+  lastValues.z += SMOOTH * (data.z - lastValues.z);
+
+  dataBuffer.push({...lastValues});
+  if (dataBuffer.length > MAX_POINTS) dataBuffer.shift();
+  drawPlot();
+}
+
+function drawPlot() {
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+  
+  if (dataBuffer.length < 2) return;
+  
+  let minVal = Infinity, maxVal = -Infinity;
+  dataBuffer.forEach(p => {
+    minVal = Math.min(minVal, p.x, p.y, p.z);
+    maxVal = Math.max(maxVal, p.x, p.y, p.z);
+  });
+  if (maxVal === minVal) { maxVal += 1; minVal -= 1; }
+  
+  const scaleX = w / Math.max(1, dataBuffer.length - 1);
+  const scaleY = h / (maxVal - minVal);
+  
+  // Grid
+  ctx.strokeStyle = '#eee'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    ctx.moveTo(0, i * h / 5); ctx.lineTo(w, i * h / 5);
+  }
+  ctx.stroke();
+  
+  // Lines
+  function drawLine(key, color) {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    dataBuffer.forEach((p, i) => {
+      const x = i * scaleX;
+      const y = h - ((p[key] - minVal) * scaleY);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+  drawLine('x', '#e74c3c'); drawLine('y', '#2ecc71'); drawLine('z', '#3498db');
+  
+  // Zero line
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.beginPath();
+  const zeroY = h - ((0 - minVal) * scaleY);
+  ctx.moveTo(0, zeroY); ctx.lineTo(w, zeroY); ctx.stroke();
+}
+
+function showScreen(id) {
+  document.getElementById('screen-mode').style.display = 'none';
+  document.getElementById('screen-player').style.display = 'none';
+  document.getElementById('screen-admin').style.display = 'none';
+  document.getElementById(id).style.display = 'block';
+}
+
+function enterPlayer() { currentMode = 'player'; showScreen('screen-player'); }
+function enterAdmin() { currentMode = 'admin'; showScreen('screen-admin'); }
+function backToMode() { currentMode = null; showScreen('screen-mode'); }
+
+function adminAction(cmd) {
+  fetch("/admin?cmd=" + encodeURIComponent(cmd))
+    .then(r => r.text())
+    .then(t => document.getElementById("admin-status").innerText = t);
+}
+
+let messageTimeout = null;
+
+function showPlayerMessage(text) {
+  // Only show in player mode
+  if (currentMode !== 'player') return;
+
+  const box = document.getElementById("playerMessage");
+  box.innerText = text;
+  box.style.display = "block";
+  box.style.opacity = "1";
+
+  if (messageTimeout) clearTimeout(messageTimeout);
+
+  messageTimeout = setTimeout(() => {
+    box.style.opacity = "0";
+    setTimeout(() => box.style.display = "none", 300);
+  }, 3000);
+}
+
+// Log scale config
+const PHONON_MIN = 0.4;
+const PHONON_MAX = 200; // corresponds to top tick (1k)
+
+function phononToPct(value) {
+  const v = Math.max(PHONON_MIN, value);
+  const logMin = Math.log10(PHONON_MIN);
+  const logMax = Math.log10(PHONON_MAX);
+  const logVal = Math.log10(v);
+  return (logVal - logMin) / (logMax - logMin);
+}
+
+function buildPhononTicks(containerId, values) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+
+  values.forEach(v => {
+    const pct = phononToPct(v);
+    if (pct < 0 || pct > 1) return;
+
+    const tick = document.createElement("div");
+    tick.className = "phonon-tick";
+    tick.style.bottom = (pct * 100) + "%";
+
+    const label = document.createElement("span");
+    label.innerText = v >= 1000 ? (v / 1000) + "k" : v;
+
+    tick.appendChild(label);
+    container.appendChild(tick);
+  });
+}
+
+function updatePhononBars(px, py, pz) {
+  setLogBar("px", px);
+  setLogBar("py", py);
+  setLogBar("pz", pz);
+}
+
+function setLogBar(prefix, value) {
+  const fill = document.getElementById(prefix + "-fill");
+  const label = document.getElementById(prefix + "-val");
+
+  label.innerText = value;
+
+  const pct = phononToPct(value);
+  const clamped = Math.max(0, Math.min(1, pct));
+
+  fill.style.height = (clamped * 100) + "%";
+}
+
+
+// Init
+window.onload = () => {
+  connectWebSocket();
+
+  const tickValues = [1, 10, 100];
+
+  buildPhononTicks("px-ticks", tickValues);
+};
+</script>
+</body></html>
