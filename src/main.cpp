@@ -7,14 +7,17 @@
 #include <AsyncTCP.h>
 #include <vector>
 #include <ArduinoJson.h>
-#include "LittleFS.h"
+#include <LittleFS.h>
 #include <WS2812FX.h>
+#include <A1301.h>
+
 
 // -------------------- Pin definitions --------------------
 #define LED_PIN 2
 #define LED_COUNT 16
 #define IMU_SDA_PIN 21
 #define IMU_SCL_PIN 22
+#define HALL_PIN 34
 
 // -------------------- Servers --------------------
 WebSocketsServer webSocket(81);   // WebSocket on port 81
@@ -26,6 +29,9 @@ WS2812FX ws2812fx = WS2812FX(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800); // Examp
 
 // -------------------- IMU --------------------
 LSM6DS3 imu(I2C_MODE, 0x6B);
+
+// -------------------- Hall effect sensor --------------------
+A1324 hallSensor(HALL_PIN);
 
 // -------------------- WiFi --------------------
 const byte DNS_PORT = 53;
@@ -153,6 +159,9 @@ void setup() {
   ws2812fx.init();
   ws2812fx.setBrightness(50);
   ws2812fx.start();
+
+  hallSensor.begin(5.0, 1023);
+  hallSensor.autoMidPoint();
 
   imu.settings.accelBandWidth = 200;
   if (imu.begin() != 0) {
