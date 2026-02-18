@@ -91,6 +91,70 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   font-size: 16px;
   color: #333;
 }
+/* Magnitude stage */
+.mag-stage { margin: 12px 0; }
+.mag-value { font-size: 36px; font-weight: bold; color:#333; }
+.mag-threshold { font-size: 14px; color:#666; }
+.hold-bar { width: 300px; height:18px; background:#ddd; border-radius:9px; margin:8px auto; overflow:hidden; }
+.hold-fill { height:100%; width:0%; background:#4CAF50; transition:width 0.1s linear; }
+
+/* Win screen styles */
+#win-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+.win-content {
+  background: linear-gradient(180deg,#fff9e6 0%, #fff2cc 50%, #ffe699 100%);
+  border-radius: 16px;
+  padding: 32px 40px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  position: relative;
+  overflow: hidden;
+  min-width: 320px;
+}
+.win-title {
+  font-size: 60px;
+  margin: 0 0 8px 0;
+  color: #8a5a06;
+  text-shadow: 0 2px 8px rgba(255,230,160,0.8);
+  animation: gold-shimmer 2.5s linear infinite;
+}
+.win-sub { color:#6b4b12; margin:0 0 18px 0; font-size:30px; }
+.win-button { padding:10px 20px; background:#8a5a06; color:white; border:none; border-radius:8px; cursor:pointer; }
+.win-button:hover { opacity:0.9; }
+
+/* shimmering gold animation */
+@keyframes gold-shimmer {
+  0% { color: #b8860b; filter: drop-shadow(0 0 0 rgba(255, 215, 0, 0)); }
+  50% { color: #ffd54f; filter: drop-shadow(0 6px 12px rgba(255, 215, 0, 0.25)); }
+  100% { color: #b8860b; filter: drop-shadow(0 0 0 rgba(255, 215, 0, 0)); }
+}
+
+/* subtle moving gold sparkles */
+.win-sparkles {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 300px;
+  background-image: radial-gradient(circle at 10% 20%, rgba(255,240,180,0.9) 2px, transparent 6px),
+                    radial-gradient(circle at 70% 40%, rgba(255,230,120,0.85) 2px, transparent 6px),
+                    radial-gradient(circle at 40% 70%, rgba(255,245,200,0.7) 2px, transparent 6px);
+  background-size: 200px 200px, 180px 180px, 220px 220px;
+  opacity: 0.9;
+  transform: translateY(0);
+  animation: sparkle-move 6s linear infinite;
+  pointer-events: none;
+}
+@keyframes sparkle-move {
+  0% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-8px) translateX(6px); }
+  100% { transform: translateY(0) translateX(0); }
+}
 </style>
 </head>
 <body>
@@ -123,9 +187,14 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
     transition: opacity 0.3s ease;
   ">
   </div>
+  <!-- Stage 1: magnitude monitor -->
+  <div id="mag-screen" class="mag-stage">
+    <div class="mag-value" id="mag-value">0.00</div>
+    <div class="hold-bar"><div id="hold-fill" class="hold-fill"></div></div>
+  </div>
 
   <canvas id="plot" width="400" height="200"></canvas>
-  <div class="phonon-container">
+  <div class="phonon-container" id="phonon-container">
     <div>
       <div class="phonon-bar">
         <div class="phonon-ticks" id="px-ticks"></div>
@@ -159,8 +228,10 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
       <div class="phonon-label">Z</div>
     </div>
   </div>
-  <h2>n<sub>phonons</sub></h2>
-  <button onclick="backToMode()" style="background:#2196F3;color:white;">Back</button>
+  <div id="nphonon-header"><h2>n<sub>phonons</sub></h2></div>
+  <div style="text-align:center; margin:12px 0;">
+    <button onclick="backToMode()" style="background:#2196F3;color:white; display:inline-block; padding:12px 24px; border-radius:5px;">Back</button>
+  </div>
 </div>
 
 <!-- Admin screen -->
@@ -170,7 +241,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 
   <button onclick="adminAction('start')" style="background:#4CAF50;color:white;">Start Game</button>
   <button onclick="adminAction('stop')" style="background:#ff9800;color:white;">Stop Game</button>
-  <button onclick="adminAction('reset')" style="background:#f44336;color:white;">Reset Scores</button>
+  
 
   <hr>
 
@@ -178,7 +249,14 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   Period:
   <input type="number" id="period" value="750"> ms<br><br>
   Phonon scale:
-  <input type="number" id="phonon" value="300.0" step="0.1"><br><br>
+  <input type="number" id="phonon" value="0.1" step="0.1"><br><br>
+  Magnitude threshold:
+  <input type="number" id="threshold" value="0.4" step="0.1"> (units: accel)
+  <br><br>
+  Hold time:
+  <input type="number" id="hold" value="1000"> ms<br><br>
+  Win hold time (zero phonons):
+  <input type="number" id="win_hold" value="3000"> ms<br><br>
 
   <button onclick="setParams()" style="background:#673ab7;color:white;">
     Apply Parameters
@@ -194,6 +272,37 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 
   <button onclick="backToMode()" style="background:#2196F3;color:white;">Back</button>
   <p id="admin-status" style="color:#f44336;font-weight:bold;"></p>
+
+  <!-- Simulator (debug) -->
+  <div id="simulator" style="margin-top:12px; border-top:1px dashed #ccc; padding-top:12px; text-align:left; max-width:680px; margin-left:auto; margin-right:auto;">
+    <h3>Simulator (debug)</h3>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label><input type="checkbox" id="sim-auto"> Auto stream</label>
+      Rate: <input type="number" id="sim-rate" value="250" style="width:80px;"> ms
+      <button onclick="simToggleAuto()" style="background:#607d8b;color:white;padding:8px 12px;border-radius:6px;">Start/Stop</button>
+      <button onclick="enterPlayer()" style="background:#2196F3;color:white;padding:8px 12px;border-radius:6px;">Enter Player</button>
+    </div>
+    <div style="margin-top:8px; display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label>nphonon_x: <input type="number" id="sim-px" value="0" style="width:80px;"></label>
+      <label>nphonon_y: <input type="number" id="sim-py" value="0" style="width:80px;"></label>
+      <label>nphonon_z: <input type="number" id="sim-pz" value="0" style="width:80px;"></label>
+      <button onclick="simSendSample()" style="background:#4CAF50;color:white;padding:8px 12px;border-radius:6px;">Send sample</button>
+      <button onclick="simSetZero()" style="background:#8bc34a;color:white;padding:8px 12px;border-radius:6px;">Set zero</button>
+      <button onclick="simSetNonZero()" style="background:#ff9800;color:white;padding:8px 12px;border-radius:6px;">Set non-zero</button>
+      <button onclick="simFastForwardWin()" style="background:#9c27b0;color:white;padding:8px 12px;border-radius:6px;">Fast-forward win</button>
+    </div>
+    <div style="margin-top:8px;color:#555;font-size:13px;">Notes: Use <strong>Enter Player</strong> to switch to player view. <strong>Fast-forward win</strong> will immediately trigger the win-screen if phonons are zero.</div>
+  </div>
+</div>
+
+<!-- Win screen overlay -->
+<div id="win-screen" style="display:none;">
+  <div class="win-content">
+    <div class="win-sparkles"></div>
+    <h1 class="win-title">Hooray - You Won!</h1>
+    <p class="win-sub">No Phonons left in the system! Turns out, you are the hero sample you have been looking for ;)</p>
+    <button onclick="hideWinScreen()" class="win-button">Continue</button>
+  </div>
 </div>
 
 <script>
@@ -201,12 +310,21 @@ let ws = null;
 let currentMode = null;
 let dataBuffer = [];
 const MAX_POINTS = 200;
+// Stage logic
+let playerStage = 1; // 1 = magnitude stage, 2 = phonon stage
+let magThreshold = 0.01;
+let magHoldMs = 1000;
+let holdStart = null;
+let holdAnimFrame = null;
 
 function setParams() {
   const period = document.getElementById("period").value;
   const phonon = document.getElementById("phonon").value;
+  const threshold = document.getElementById("threshold").value;
+  const hold = document.getElementById("hold").value;
+  const win = document.getElementById("win_hold").value;
 
-  fetch(`/admin?cmd=setParams&period=${period}&phonon=${phonon}`)
+  fetch(`/admin?cmd=setParams&period=${period}&phonon=${phonon}&threshold=${threshold}&hold=${hold}&win_hold=${win}`)
     .then(r => r.text())
     .then(t => document.getElementById("admin-status").innerText = t);
 }
@@ -223,15 +341,62 @@ function connectWebSocket() {
   
   ws.onopen = () => {
     document.getElementById('status').innerText = 'WebSocket Connected ✓';
+    // inform device of current stage on connect
+    sendStageToDevice(playerStage);
   };
   
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
+    // Handle stage broadcasts from device (do not echo back)
+    if (data.type === 'stage' || data.type === 'stage_sync') {
+      const s = parseInt(data.stage) || 1;
+      if (s === 1) {
+        // remote -> stage 1 (reset UI)
+        playerStage = 1;
+        holdStart = null;
+        if (document.getElementById('hold-fill')) document.getElementById('hold-fill').style.width = '0%';
+        document.getElementById('mag-screen').style.display = 'block';
+        document.getElementById('phonon-container').style.display = 'none';
+        const header = document.getElementById('nphonon-header'); if (header) header.style.display = 'none';
+      } else if (s === 2) {
+        // remote -> stage 2 (show phonons)
+        playerStage = 2;
+        document.getElementById('mag-screen').style.display = 'none';
+        document.getElementById('phonon-container').style.display = 'flex';
+        const header = document.getElementById('nphonon-header'); if (header) header.style.display = 'block';
+      } else if (s === 3) {
+        // remote -> persistent win screen
+        playerStage = 3;
+        winShown = true;
+        winTimerStart = null;
+        const el = document.getElementById('win-screen'); if (el) el.style.display = 'flex';
+      }
+      return;
+    }
+
     // Handle admin → player messages
     if (data.type === "adminMessage") {
       showPlayerMessage(data.text);
       return;
+    }
+
+    // Accept broadcasted config if present
+    if (data.mag_threshold !== undefined) {
+      magThreshold = parseFloat(data.mag_threshold);
+      const thrInput = document.getElementById('threshold');
+      if (thrInput) thrInput.value = magThreshold;
+    }
+    if (data.mag_hold !== undefined) {
+      magHoldMs = parseInt(data.mag_hold);
+      const holdInput = document.getElementById('hold');
+      if (holdInput) holdInput.value = magHoldMs;
+    }
+
+    if (data.win_hold !== undefined) {
+      winHoldMs = parseInt(data.win_hold);
+      const winInput = document.getElementById('win_hold');
+      if (winInput) winInput.value = winHoldMs;
     }
 
 
@@ -249,24 +414,193 @@ function connectWebSocket() {
   };
 }
 
+function sendStageToDevice(stage) {
+  if (!ws || ws.readyState !== 1) return;
+  try {
+    ws.send(JSON.stringify({type: 'stage', stage: stage}));
+  } catch (e) {
+    console.warn('Could not send stage to device', e);
+  }
+}
+
 let lastValues = {x:0, y:0, z:0};
 function updatePlot(data) {
-  updatePhononBars(
-    data.nphonon_x || 0,
-    data.nphonon_y || 0,
-    data.nphonon_z || 0
-  );
-
   const SMOOTH = 0.05;
 
   lastValues.x += SMOOTH * (data.x - lastValues.x);
   lastValues.y += SMOOTH * (data.y - lastValues.y);
   lastValues.z += SMOOTH * (data.z - lastValues.z);
 
+  // compute magnitude
+  const mag = Math.sqrt(lastValues.x*lastValues.x + lastValues.y*lastValues.y + lastValues.z*lastValues.z);
+
+  // Stage handling
+  updateStage(mag, data);
+
   dataBuffer.push({...lastValues});
   if (dataBuffer.length > MAX_POINTS) dataBuffer.shift();
   drawPlot();
 }
+
+function updateStage(mag, data) {
+  // Update magnitude screen
+  document.getElementById('mag-value').innerText = mag.toFixed(2);
+
+  if (playerStage === 1) {
+    // show mag screen, hide phonons
+    document.getElementById('mag-screen').style.display = 'block';
+    document.getElementById('phonon-container').style.display = 'none';
+    document.getElementById('nphonon-header').style.display = 'none';
+
+    if (mag >= magThreshold) {
+      if (!holdStart) holdStart = Date.now();
+      startHoldAnimator();
+    } else {
+      holdStart = null;
+      document.getElementById('hold-fill').style.width = '0%';
+      stopHoldAnimator();
+    }
+  }
+
+  if (playerStage === 2) {
+    // show phonons, hide mag screen
+    document.getElementById('mag-screen').style.display = 'none';
+    document.getElementById('phonon-container').style.display = 'flex';
+    document.getElementById('nphonon-header').style.display = 'block';
+    updatePhononBars(
+      data.nphonon_x || 0,
+      data.nphonon_y || 0,
+      data.nphonon_z || 0
+    );
+    // check for win condition when phonon stage is active
+    const total = (data.nphonon_x || 0) + (data.nphonon_y || 0) + (data.nphonon_z || 0);
+    checkWinCondition(total);
+  }
+}
+
+function startHoldAnimator() {
+  if (holdAnimFrame || !holdStart) return;
+  function step() {
+    if (!holdStart) { holdAnimFrame = null; return; }
+    const elapsed = Date.now() - holdStart;
+    const pct = Math.min(1, elapsed / magHoldMs);
+    const fill = document.getElementById('hold-fill');
+    if (fill) fill.style.width = (pct * 100) + '%';
+    if (elapsed >= magHoldMs) {
+      // progress to phonon stage
+      playerStage = 2;
+      holdStart = null;
+      if (fill) fill.style.width = '0%';
+      // ensure UI switches immediately
+      document.getElementById('mag-screen').style.display = 'none';
+      document.getElementById('phonon-container').style.display = 'flex';
+      const header = document.getElementById('nphonon-header');
+      if (header) header.style.display = 'block';
+      // notify device that player advanced to stage 2
+      sendStageToDevice(2);
+      holdAnimFrame = null;
+      return;
+    }
+    holdAnimFrame = requestAnimationFrame(step);
+  }
+  holdAnimFrame = requestAnimationFrame(step);
+}
+
+function stopHoldAnimator() {
+  if (holdAnimFrame) { cancelAnimationFrame(holdAnimFrame); holdAnimFrame = null; }
+}
+
+// Win detection variables and functions
+let winHoldMs = 3000; // default: 3s
+let winTimerStart = null;
+let winShown = false;
+
+function checkWinCondition(totalPhonons) {
+  // Only operate when player is in player mode
+  if (currentMode !== 'player') return;
+
+  if (totalPhonons === 0) {
+    if (!winTimerStart) winTimerStart = Date.now();
+    const elapsed = Date.now() - winTimerStart;
+    if (elapsed >= winHoldMs && !winShown) showWinScreen();
+  } else {
+    // reset timer and hide if phonons return
+    winTimerStart = null;
+    if (winShown) hideWinScreen();
+  }
+}
+
+function showWinScreen() {
+  winShown = true;
+  const el = document.getElementById('win-screen');
+  if (!el) return;
+  el.style.display = 'flex';
+
+  // progress to stage 3
+  playerStage = 3;
+  // notify device that player advanced to stage 3
+  sendStageToDevice(3);
+}
+
+function hideWinScreen() {
+  winShown = false;
+  winTimerStart = null;
+  const el = document.getElementById('win-screen');
+  if (!el) return;
+  el.style.display = 'none';
+}
+
+// --- Simulator JS ---
+let simInterval = null;
+function simSendSample() {
+  const px = parseInt(document.getElementById('sim-px').value) || 0;
+  const py = parseInt(document.getElementById('sim-py').value) || 0;
+  const pz = parseInt(document.getElementById('sim-pz').value) || 0;
+  // small random accel jitter
+  const ax = (Math.random() - 0.5) * 0.6;
+  const ay = (Math.random() - 0.5) * 0.6;
+  const az = (Math.random() - 0.5) * 0.6;
+  updatePlot({x: ax, y: ay, z: az, nphonon_x: px, nphonon_y: py, nphonon_z: pz});
+}
+
+function simSetZero() {
+  document.getElementById('sim-px').value = 0;
+  document.getElementById('sim-py').value = 0;
+  document.getElementById('sim-pz').value = 0;
+  simSendSample();
+}
+
+function simSetNonZero() {
+  document.getElementById('sim-px').value = 6;
+  document.getElementById('sim-py').value = 3;
+  document.getElementById('sim-pz').value = 1;
+  simSendSample();
+}
+
+function simFastForwardWin() {
+  // Make timer appear as if winHoldMs already elapsed
+  winTimerStart = Date.now() - winHoldMs - 50;
+  // ensure player mode and phonons are zero when triggering
+  const total = 0;
+  checkWinCondition(total);
+}
+
+function simToggleAuto() {
+  const cb = document.getElementById('sim-auto');
+  const rate = parseInt(document.getElementById('sim-rate').value) || 250;
+  if (simInterval) { clearInterval(simInterval); simInterval = null; cb.checked = false; return; }
+  cb.checked = true;
+  simInterval = setInterval(() => {
+    const px = parseInt(document.getElementById('sim-px').value) || 0;
+    const py = parseInt(document.getElementById('sim-py').value) || 0;
+    const pz = parseInt(document.getElementById('sim-pz').value) || 0;
+    const ax = (Math.random() - 0.5) * 1.0;
+    const ay = (Math.random() - 0.5) * 1.0;
+    const az = (Math.random() - 0.5) * 1.0;
+    updatePlot({x: ax, y: ay, z: az, nphonon_x: px, nphonon_y: py, nphonon_z: pz});
+  }, rate);
+}
+
 
 function drawPlot() {
   const canvas = document.getElementById('plot');
@@ -319,9 +653,21 @@ function showScreen(id) {
   document.getElementById(id).style.display = 'block';
 }
 
-function enterPlayer() { currentMode = 'player'; showScreen('screen-player'); }
+function enterPlayer() { currentMode = 'player'; showScreen('screen-player'); resetPlayerStage(); }
 function enterAdmin() { currentMode = 'admin'; showScreen('screen-admin'); }
-function backToMode() { currentMode = null; showScreen('screen-mode'); }
+function backToMode() { currentMode = null; showScreen('screen-mode'); resetPlayerStage(); }
+
+function resetPlayerStage() {
+  playerStage = 1;
+  holdStart = null;
+  document.getElementById('hold-fill').style.width = '0%';
+  document.getElementById('mag-screen').style.display = 'block';
+  document.getElementById('phonon-container').style.display = 'none';
+  const header = document.getElementById('nphonon-header');
+  if (header) header.style.display = 'none';
+  // notify device that player returned to stage 1
+  sendStageToDevice(1);
+}
 
 function adminAction(cmd) {
   fetch("/admin?cmd=" + encodeURIComponent(cmd))
@@ -406,6 +752,22 @@ window.onload = () => {
   const tickValues = [1, 10, 100];
 
   buildPhononTicks("px-ticks", tickValues);
+  // init admin inputs for threshold/hold
+  const thrInput = document.getElementById('threshold');
+  if (thrInput) thrInput.value = magThreshold;
+  const holdInput = document.getElementById('hold');
+  if (holdInput) holdInput.value = magHoldMs;
+  // init win hold input
+  const winInput = document.getElementById('win_hold');
+  if (winInput) {
+    winInput.value = winHoldMs;
+    winInput.addEventListener('change', () => {
+      winHoldMs = parseInt(winInput.value || winHoldMs);
+    });
+  }
+  // simulator init
+  const simAuto = document.getElementById('sim-auto');
+  if (simAuto) simAuto.addEventListener('change', simToggleAuto);
 };
 </script>
 </body></html>
