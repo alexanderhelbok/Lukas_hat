@@ -19,6 +19,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 .mag-stage { margin: 12px 0; }
 .mag-value { font-size: 36px; font-weight: bold; color:#333; }
 .mag-threshold { font-size: 14px; color:#666; }
+#mag-status { font-size: 32px; font-weight: 700; color: #333; margin-top: 8px; }
 .hold-bar { width: 300px; height:18px; background:#ddd; border-radius:9px; margin:8px auto; overflow:hidden; }
 .hold-fill { height:100%; width:0%; background:#4CAF50; transition:width 0.1s linear; }
 
@@ -100,7 +101,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 <!-- Player screen -->
 <div id="screen-player" style="display:none;">
   <h1>Welcome Lukas</h1>
-  <h2>Lets cool a cantilever!</h2>
+  <h2 id="stage-header">Lets mount a magnetic particle</h2>
   <div id="playerMessage" style="
     display:none;
     position:fixed;
@@ -121,6 +122,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   <div id="mag-screen" class="mag-stage">
     <div class="mag-value" id="mag-value">0.00</div>
     <div class="hold-bar"><div id="hold-fill" class="hold-fill"></div></div>
+    <div id="mag-status" class="mag-threshold" style="margin-top:8px;"></div>
   </div>
 
 
@@ -147,18 +149,20 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 
   <button onclick="adminAction('start')" style="background:#4CAF50;color:white;">Start Game</button>
   <button onclick="adminAction('stop')" style="background:#ff9800;color:white;">Stop Game</button>
+  <button onclick="adminAction('toggleLights')" style="background:#000;color:white;">Toggle LEDs</button>
 
   <hr>
 
   <h3>Game Parameters</h3>
   Period:
-  <input type="number" id="period" value="750"> ms<br><br>
+  <input type="number" id="period" value="100"> ms<br><br>
   Phonon scale:
-  <input type="number" id="phonon" value="0.1" step="0.1"><br><br>
-  Magnitude threshold:
-  <input type="number" id="threshold" value="0.4" step="0.1"> (units: accel)<br><br>
+  <input type="number" id="phonon" value="0.001" step="0.0001"><br><br>
+  Magnitude interval:<br>
+  Min: <input type="number" id="mag_min" value="1350" step="0.1"><br>
+  Max: <input type="number" id="mag_max" value="1450" step="0.1"> (units: accel)<br><br>
   Hold time:
-  <input type="number" id="hold" value="1000"> ms<br><br>
+  <input type="number" id="hold" value="25000"> ms<br><br>
   Win hold time (zero phonons):
   <input type="number" id="win_hold" value="3000"> ms<br><br>
 
@@ -204,28 +208,46 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   </div>
 </div>
 
+<!-- Ready overlay (shown after hold completes; requires player to press Continue) -->
+<div id="ready-screen" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; z-index:99998;">
+  <div style="background:#fff; padding:24px 28px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,0.3); text-align:center; min-width:280px;">
+    <h2 style="margin:0 0 8px 0;">Ready for cooldown</h2>
+    <p style="margin:0 0 16px 0;">Let us suspend you.</p>
+    <div style="display:flex; gap:8px; justify-content:center;">
+      <button onclick="continueToStage2()" style="background:#4CAF50;color:white;padding:8px 14px;border-radius:8px;border:none;">Continue</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let ws = null;
 let currentMode = null;
 let dataBuffer = [];
 const MAX_POINTS = 200;
 let playerStage = 1;
-let magThreshold = 0.01;
-let magHoldMs = 1000;
+let magMin = 1350;
+let magMax = 1450.0;
+let magHoldMs = 25000;
 let holdStart = null;
 let holdAnimFrame = null;
 let winHoldMs = 3000;
 let winTimerStart = null;
 let winShown = false;
+// freeze state when ready-overlay is shown
+let latestMag = 0;
+let readyFrozen = false;
+let frozenMag = 0;
+let frozenFillPct = 0;
 
 function setParams() {
   const period = document.getElementById("period").value;
   const phonon = document.getElementById("phonon").value;
-  const threshold = document.getElementById("threshold").value;
+  const mag_min = document.getElementById("mag_min").value;
+  const mag_max = document.getElementById("mag_max").value;
   const hold = document.getElementById("hold").value;
   const win = document.getElementById("win_hold").value;
 
-  fetch(`/admin?cmd=setParams&period=${period}&phonon=${phonon}&threshold=${threshold}&hold=${hold}&win_hold=${win}`)
+  fetch(`/admin?cmd=setParams&period=${period}&phonon=${phonon}&mag_min=${mag_min}&mag_max=${mag_max}&hold=${hold}&win_hold=${win}`)
     .then(r => r.text())
     .then(t => document.getElementById("admin-status").innerText = t);
 }
@@ -246,19 +268,81 @@ function connectWebSocket() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    if (data.type === 'stage' || data.type === 'stage_sync') {
+    // Params messages contain no sensor fields — handle separately
+    // and prevent them from reaching the plot update (which expects x/y/z).
+    if (data.type === 'params') {
+      const magMinEl = document.getElementById('mag_min');
+      if (data.mag_min !== undefined) {
+        magMin = parseFloat(data.mag_min);
+        if (currentMode === 'admin' && document.activeElement !== magMinEl) magMinEl.value = magMin;
+      }
+      const magMaxEl = document.getElementById('mag_max');
+      if (data.mag_max !== undefined) {
+        magMax = parseFloat(data.mag_max);
+        if (currentMode === 'admin' && document.activeElement !== magMaxEl) magMaxEl.value = magMax;
+      }
+      const holdEl = document.getElementById('hold');
+      if (data.mag_hold !== undefined) {
+        magHoldMs = parseInt(data.mag_hold);
+        if (currentMode === 'admin' && document.activeElement !== holdEl) holdEl.value = magHoldMs;
+      }
+      const winHoldEl = document.getElementById('win_hold');
+      if (data.win_hold !== undefined) {
+        winHoldMs = parseInt(data.win_hold);
+        if (currentMode === 'admin' && document.activeElement !== winHoldEl) winHoldEl.value = winHoldMs;
+      }
+      if (data.period !== undefined) document.getElementById('period').value = data.period;
+      if (data.phonon !== undefined) document.getElementById('phonon').value = data.phonon;
+
+      return; // don't call updatePlot for this message
+    }
+
+      if (data.type === 'stage' || data.type === 'stage_sync') {
       const s = parseInt(data.stage) || 1;
-      if (s === 1) { playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block'; } 
-      else if (s ===2) { playerStage=2; document.getElementById('mag-screen').style.display='none'; document.getElementById('plot').style.display='block'; }
-      else if (s===3) { playerStage=3; winShown=true; winTimerStart=null; document.getElementById('win-screen').style.display='flex'; }
+      if (s === 1) {
+        playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block';
+        // stage header text for staging
+        const hdr = document.getElementById('stage-header'); if (hdr) hdr.innerText = 'Lets mount a magnetic particle';
+      } else if (s === 2) {
+        playerStage=2; document.getElementById('mag-screen').style.display='none'; document.getElementById('plot').style.display='block';
+        const hdr = document.getElementById('stage-header'); if (hdr) hdr.innerText = 'Lets cool this cantilever';
+      } else if (s === 3) {
+        playerStage=3;
+        // Only show the win overlay for players, not admins
+        winTimerStart = null;
+        winShown = (currentMode === 'player');
+        if (currentMode === 'player') {
+          document.getElementById('win-screen').style.display = 'flex';
+        } else {
+          document.getElementById('win-screen').style.display = 'none';
+        }
+      }
       return;
     }
 
     if (data.type === "adminMessage") { showPlayerMessage(data.text); return; }
 
-    if (data.mag_threshold !== undefined) { magThreshold = parseFloat(data.mag_threshold); document.getElementById('threshold').value = magThreshold; }
-    if (data.mag_hold !== undefined) { magHoldMs = parseInt(data.mag_hold); document.getElementById('hold').value = magHoldMs; }
-    if (data.win_hold !== undefined) { winHoldMs = parseInt(data.win_hold); document.getElementById('win_hold').value = winHoldMs; }
+      const magMinEl = document.getElementById('mag_min');
+      if (data.mag_min !== undefined) {
+        magMin = parseFloat(data.mag_min);
+        // Only update admin UI when admin view is active and the field is not focused
+        if (currentMode === 'admin' && document.activeElement !== magMinEl) magMinEl.value = magMin;
+      }
+      const magMaxEl = document.getElementById('mag_max');
+      if (data.mag_max !== undefined) {
+        magMax = parseFloat(data.mag_max);
+        if (currentMode === 'admin' && document.activeElement !== magMaxEl) magMaxEl.value = magMax;
+      }
+      const holdEl = document.getElementById('hold');
+      if (data.mag_hold !== undefined) {
+        magHoldMs = parseInt(data.mag_hold);
+        if (currentMode === 'admin' && document.activeElement !== holdEl) holdEl.value = magHoldMs;
+      }
+      const winHoldEl = document.getElementById('win_hold');
+      if (data.win_hold !== undefined) {
+        winHoldMs = parseInt(data.win_hold);
+        if (currentMode === 'admin' && document.activeElement !== winHoldEl) winHoldEl.value = winHoldMs;
+      }
 
     updatePlot(data);
   };
@@ -279,24 +363,61 @@ function updatePlot(data) {
   lastValues.z += SMOOTH*(data.z-lastValues.z);
 
   const mag = Math.sqrt(lastValues.x**2 + lastValues.y**2 + lastValues.z**2);
+  latestMag = mag;
   updateStage(mag, data);
 
-  const total = (data.nphonon_x||0) + (data.nphonon_y||0) + (data.nphonon_z||0);
-  document.getElementById('total-phonons').innerText = "Phonons: " + total;
-
-  dataBuffer.push({total});
+  const phononTotal = (data.nphonon_x||0) + (data.nphonon_y||0) + (data.nphonon_z||0);
+  // In stage 1 show the field magnitude; otherwise show phonons
+  if (playerStage === 1) {
+    const displayMag = readyFrozen ? frozenMag : latestMag;
+    document.getElementById('total-phonons').innerText = "Field: " + displayMag.toFixed(2);
+    // Push the live field magnitude into the plot buffer so the trace shows field values
+    dataBuffer.push({ total: displayMag });
+  } else {
+    document.getElementById('total-phonons').innerText = "Phonons: " + phononTotal;
+    dataBuffer.push({ total: phononTotal });
+  }
   if(dataBuffer.length>MAX_POINTS) dataBuffer.shift();
   drawPlot();
 }
 
 function updateStage(mag, data) {
-  document.getElementById('mag-value').innerText = mag.toFixed(2);
+  // show frozen mag when ready overlay is active
+  const displayMag = readyFrozen ? frozenMag : mag;
+  document.getElementById('mag-value').innerText = displayMag.toFixed(2);
 
-  if(playerStage===1){
-    document.getElementById('mag-screen').style.display='block';
-    document.getElementById('plot').style.display='block';
-    if(mag>=magThreshold){ if(!holdStart) holdStart=Date.now(); startHoldAnimator(); }
-    else { holdStart=null; document.getElementById('hold-fill').style.width='0%'; stopHoldAnimator(); }
+  const magStatusEl = document.getElementById('mag-status');
+
+  if (playerStage === 1) {
+    // hide cantilever animation during stage 1
+    const cant = document.getElementById('cantilever'); if (cant) cant.style.display = 'none';
+    document.getElementById('mag-screen').style.display = 'block';
+    document.getElementById('plot').style.display = 'block';
+    // If we've already reached the ready milestone, keep showing frozen visuals
+    if (readyFrozen) {
+      // freeze fill bar at the captured percentage
+      const fill = document.getElementById('hold-fill');
+      if (fill) fill.style.width = frozenFillPct + '%';
+      if (magStatusEl) magStatusEl.innerText = 'Hold achieved - press Continue';
+      return;
+    }
+    // Allow magMin and magMax to be specified in either order
+    let minV = magMin, maxV = magMax;
+    if (magMin > magMax) { minV = magMax; maxV = magMin; }
+    let inInterval = (mag >= minV && mag <= maxV);
+    if (inInterval) {
+      if (!holdStart) holdStart = Date.now();
+      if (magStatusEl) magStatusEl.innerText = 'Perfect size';
+      startHoldAnimator();
+    } else {
+      holdStart = null; document.getElementById('hold-fill').style.width = '0%'; stopHoldAnimator();
+      if (mag < minV) { if (magStatusEl) magStatusEl.innerText = 'No Signal'; }
+      else { if (magStatusEl) magStatusEl.innerText = 'Congrats, you killed your SQUID :('; }
+    }
+  } else {
+    // show cantilever canvas in later stages
+    const cant = document.getElementById('cantilever'); if (cant) cant.style.display = 'block';
+    if (magStatusEl) magStatusEl.innerText = '';
   }
   if(playerStage===2){
     document.getElementById('mag-screen').style.display='none';
@@ -311,13 +432,52 @@ function startHoldAnimator() {
     const elapsed=Date.now()-holdStart;
     const pct=Math.min(1,elapsed/magHoldMs);
     const fill=document.getElementById('hold-fill'); if(fill) fill.style.width=(pct*100)+'%';
-    if(elapsed>=magHoldMs){ playerStage=2; holdStart=null; if(fill) fill.style.width='0%'; document.getElementById('mag-screen').style.display='none'; document.getElementById('plot').style.display='block'; sendStageToDevice(2); holdAnimFrame=null; return; }
+    if(elapsed>=magHoldMs){
+      // Instead of auto-progressing, capture the milestone, freeze visuals and show ready overlay
+      holdStart = null;
+      // freeze at full progress
+      frozenFillPct = 100;
+      if (fill) fill.style.width = (frozenFillPct + '%');
+      frozenMag = latestMag;
+      readyFrozen = true;
+      showReadyScreen();
+      holdAnimFrame = null;
+      return;
+    }
     holdAnimFrame=requestAnimationFrame(step);
   }
   holdAnimFrame=requestAnimationFrame(step);
 }
 
 function stopHoldAnimator(){ if(holdAnimFrame){ cancelAnimationFrame(holdAnimFrame); holdAnimFrame=null; } }
+
+function showReadyScreen(){
+  // only for player mode
+  if (currentMode !== 'player') return;
+  document.getElementById('ready-screen').style.display = 'flex';
+}
+
+function hideReadyScreen(){
+  document.getElementById('ready-screen').style.display = 'none';
+}
+
+function continueToStage2(){
+  // proceed and clear frozen state
+  hideReadyScreen();
+  readyFrozen = false;
+  frozenMag = 0;
+  frozenFillPct = 0;
+  if (playerStage !== 2) {
+    playerStage = 2;
+    document.getElementById('mag-screen').style.display = 'none';
+    document.getElementById('plot').style.display = 'block';
+    // reset visual fill
+    const fill = document.getElementById('hold-fill'); if (fill) fill.style.width = '0%';
+    // update header for cooling stage
+    const hdr = document.getElementById('stage-header'); if (hdr) hdr.innerText = 'Lets cool this cantilever';
+    sendStageToDevice(2);
+  }
+}
 
 function checkWinCondition(totalPhonons){
   if(currentMode!=='player') return;
@@ -328,7 +488,10 @@ function checkWinCondition(totalPhonons){
 }
 
 function showWinScreen(){ winShown=true; document.getElementById('win-screen').style.display='flex'; playerStage=3; sendStageToDevice(3); }
-function hideWinScreen(){ winShown=false; winTimerStart=null; document.getElementById('win-screen').style.display='none'; }
+function sendCelebrate(on){ if(!ws || ws.readyState!==1) return; ws.send(JSON.stringify({type:'celebrate', on: !!on})); }
+
+function showWinScreen(){ winShown=true; document.getElementById('win-screen').style.display='flex'; playerStage=3; sendStageToDevice(3); sendCelebrate(true); }
+function hideWinScreen(){ winShown=false; winTimerStart=null; document.getElementById('win-screen').style.display='none'; sendCelebrate(false); }
 
 function drawPlot() {
   const canvas = document.getElementById('plot');
@@ -341,11 +504,16 @@ function drawPlot() {
   const PADDING = 0.1; // 10% extra above/below
   let minVal = Infinity, maxVal = -Infinity;
 
-  // Clamp totals to non-negative integers
-  dataBuffer.forEach(p => { 
-    p.total = Math.max(0, Math.round(p.total)); 
-    minVal = Math.min(minVal, p.total); 
-    maxVal = Math.max(maxVal, p.total); 
+  // For plotting: in stage 1 we display the live field magnitude (float),
+  // otherwise we display integer phonon totals. Clamp negatives to zero.
+  dataBuffer.forEach(p => {
+    if (playerStage === 1) {
+      p.total = Math.max(0, p.total); // keep fractional magnitude
+    } else {
+      p.total = Math.max(0, Math.round(p.total));
+    }
+    minVal = Math.min(minVal, p.total);
+    maxVal = Math.max(maxVal, p.total);
   });
 
   // Ensure minVal is at least -1 so the line at 1 is always visible
@@ -359,7 +527,7 @@ function drawPlot() {
   minVal -= range * PADDING;
 
   const scaleX = w / Math.max(1, dataBuffer.length - 1);
-  const scaleY = h / (maxVal - minVal);
+  let scaleY = h / (maxVal - minVal);
 
   // Background "temperature" as color (fixed scale 0 → 100 phonons)
   const latest = dataBuffer[dataBuffer.length - 1].total || 0;
@@ -391,10 +559,48 @@ function drawPlot() {
   ctx.fillStyle = `rgba(${r|0},${g},${b|0},0.3)`;
   ctx.fillRect(0, 0, w, h);
 
-  // Shade area below 1
+  // If we're in magnitude (stage 1), include magMin/magMax into the
+  // plotting range so their horizontal lines are positioned correctly.
+  if (playerStage === 1) {
+    minVal = Math.min(minVal, magMin, magMax);
+    maxVal = Math.max(maxVal, magMin, magMax);
+  }
+
+  // Recompute scaleY and the 'one' reference line after potential range adjustments
+  scaleY = h / (maxVal - minVal || 1);
   const oneY = h - ((1 - minVal) * scaleY);
+
+  // Shade area below 1
   ctx.fillStyle = 'rgba(0, 128, 255, 0.1)'; // light blue shade
   ctx.fillRect(0, oneY, w, h - oneY);
+
+  // If in stage 1, draw the interval limit lines using the adjusted scale
+  if (playerStage === 1) {
+    const yMax = h - ((magMax - minVal) * scaleY);
+    const yMin = h - ((magMin - minVal) * scaleY);
+
+    // draw max line (red)
+    ctx.strokeStyle = '#c62828';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, yMax + 0.5);
+    ctx.lineTo(w, yMax + 0.5);
+    ctx.stroke();
+
+    // draw min line (green)
+    ctx.strokeStyle = '#2e7d32';
+    ctx.beginPath();
+    ctx.moveTo(0, yMin + 0.5);
+    ctx.lineTo(w, yMin + 0.5);
+    ctx.stroke();
+
+    // label lines
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('Max', w - 6, yMax - 6);
+    ctx.fillText('Min', w - 6, yMin - 6);
+  }
 
   // Grid
   ctx.strokeStyle = '#eee';
@@ -544,9 +750,10 @@ animateCantilever();
 
 function showScreen(id){ document.getElementById('screen-mode').style.display='none'; document.getElementById('screen-player').style.display='none'; document.getElementById('screen-admin').style.display='none'; document.getElementById(id).style.display='block'; }
 function enterPlayer(){ currentMode='player'; showScreen('screen-player'); resetPlayerStage(); }
-function enterAdmin(){ currentMode='admin'; showScreen('screen-admin'); }
-function backToMode(){ currentMode=null; showScreen('screen-mode'); resetPlayerStage(); }
-function resetPlayerStage(){ playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block'; sendStageToDevice(1); }
+function enterAdmin(){ currentMode='admin'; showScreen('screen-admin'); hideWinScreen(); readyFrozen = false; }
+// Ensure ready overlay hidden when switching modes
+function backToMode(){ currentMode=null; showScreen('screen-mode'); resetPlayerStage(); readyFrozen = false; hideReadyScreen(); }
+function resetPlayerStage(){ playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block'; const hdr = document.getElementById('stage-header'); if (hdr) hdr.innerText = 'Lets mount a magnetic particle'; sendStageToDevice(1); }
 function adminAction(cmd){ fetch("/admin?cmd="+encodeURIComponent(cmd)).then(r=>r.text()).then(t=>document.getElementById("admin-status").innerText=t); }
 
 let messageTimeout=null;
