@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>ESP32 Accelerometer - WebSocket</title>
+<title>Lukas and his CANTILEVER</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -15,82 +15,6 @@ button:hover { opacity:0.8; }
 canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; height:200px; }
 .values { font-size:18px; font-weight:bold; color:#666; margin:20px 0; }
 .status { color:#4CAF50; font-weight:bold; }
-.phonon-container {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin: 20px 0;
-}
-
-.phonon-bar {
-  width: 60px;
-  height: 220px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  position: relative;
-  border: 1px solid #bbb;
-  margin-top: 25px;
-}
-
-/* Tick container */
-.phonon-ticks {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.phonon-tick {
-  position: absolute;
-  left: -8px;
-  width: 6px;
-  height: 0px;
-  background: #444;
-}
-
-.phonon-tick span {
-  position: absolute;
-  right: 8px;
-  top: -7px;
-  font-size: 12px;
-  color: #555;
-  white-space: nowrap;
-}
-
-.phonon-fill {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  height: 0%;
-  opacity: 0.85;
-  transition: height 0.25s ease;
-  border-radius: 0 0 8px 8px;
-}
-
-.phonon-clip {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: 8px;
-}
-
-.phonon-fill.x { background: #e74c3c; }
-.phonon-fill.y { background: #2ecc71; }
-.phonon-fill.z { background: #3498db; }
-
-.phonon-label {
-  margin-top: 8px;
-  font-weight: bold;
-}
-
-.phonon-value {
-  position: absolute;
-  top: -28px;
-  width: 100%;
-  text-align: center;
-  font-weight: bold;
-  font-size: 16px;
-  color: #333;
-}
 /* Magnitude stage */
 .mag-stage { margin: 12px 0; }
 .mag-value { font-size: 36px; font-weight: bold; color:#333; }
@@ -155,11 +79,16 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   50% { transform: translateY(-8px) translateX(6px); }
   100% { transform: translateY(0) translateX(0); }
 }
+
+#total-phonons {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 12px 0;
+  color: #333;
+}
 </style>
 </head>
 <body>
-<!-- <h1>ESP32 Accelerometer</h1> -->
-
 <!-- Mode selection screen -->
 <div id="screen-mode">
   <div id="status" class="status">Connecting WebSocket...</div>
@@ -171,6 +100,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 <!-- Player screen -->
 <div id="screen-player" style="display:none;">
   <h1>Welcome Lukas</h1>
+  <h2>Lets cool a cantilever!</h2>
   <div id="playerMessage" style="
     display:none;
     position:fixed;
@@ -185,50 +115,26 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
     z-index:9999;
     box-shadow:0 4px 12px rgba(0,0,0,0.3);
     transition: opacity 0.3s ease;
-  ">
-  </div>
+  "></div>
+
   <!-- Stage 1: magnitude monitor -->
   <div id="mag-screen" class="mag-stage">
     <div class="mag-value" id="mag-value">0.00</div>
     <div class="hold-bar"><div id="hold-fill" class="hold-fill"></div></div>
   </div>
 
-  <canvas id="plot" width="400" height="200"></canvas>
-  <div class="phonon-container" id="phonon-container">
-    <div>
-      <div class="phonon-bar">
-        <div class="phonon-ticks" id="px-ticks"></div>
 
-        <div class="phonon-clip">
-          <div class="phonon-fill x" id="px-fill"></div>
-        </div>
-
-        <div class="phonon-value" id="px-val">0</div>
-      </div>
-      <div class="phonon-label">X</div>
-    </div>
-
-    <div>
-      <div class="phonon-bar">
-        <div class="phonon-value" id="py-val">0</div>
-        <div class="phonon-clip">
-          <div class="phonon-fill y" id="py-fill"></div>
-        </div>
-      </div>
-      <div class="phonon-label">Y</div>
-    </div>
-
-    <div>
-      <div class="phonon-bar">
-        <div class="phonon-value" id="pz-val">0</div>
-        <div class="phonon-clip">
-          <div class="phonon-fill z" id="pz-fill"></div>
-        </div>
-      </div>
-      <div class="phonon-label">Z</div>
-    </div>
+  <div id="plot-container" style="display:flex; justify-content:center; margin: 20px 0;">
+    <canvas id="cantilever" width="400" height="200"></canvas>
   </div>
-  <div id="nphonon-header"><h2>n<sub>phonons</sub></h2></div>
+
+  <!-- Total phonons plot -->
+  <div id="plot-container" style="display:flex; justify-content:center; margin: 20px 0;">
+    <canvas id="plot" width="400" height="200"></canvas>
+  </div>
+
+  <div id="total-phonons">Phonons: 0</div>
+  
   <div style="text-align:center; margin:12px 0;">
     <button onclick="backToMode()" style="background:#2196F3;color:white; display:inline-block; padding:12px 24px; border-radius:5px;">Back</button>
   </div>
@@ -241,7 +147,6 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
 
   <button onclick="adminAction('start')" style="background:#4CAF50;color:white;">Start Game</button>
   <button onclick="adminAction('stop')" style="background:#ff9800;color:white;">Stop Game</button>
-  
 
   <hr>
 
@@ -251,24 +156,19 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   Phonon scale:
   <input type="number" id="phonon" value="0.1" step="0.1"><br><br>
   Magnitude threshold:
-  <input type="number" id="threshold" value="0.4" step="0.1"> (units: accel)
-  <br><br>
+  <input type="number" id="threshold" value="0.4" step="0.1"> (units: accel)<br><br>
   Hold time:
   <input type="number" id="hold" value="1000"> ms<br><br>
   Win hold time (zero phonons):
   <input type="number" id="win_hold" value="3000"> ms<br><br>
 
-  <button onclick="setParams()" style="background:#673ab7;color:white;">
-    Apply Parameters
-  </button>
+  <button onclick="setParams()" style="background:#673ab7;color:white;">Apply Parameters</button>
 
   <hr>
 
   <h3>Send Message to Player</h3>
   <input type="text" id="adminMessage" placeholder="Message to player">
-  <button onclick="sendMessage()" style="background:#009688;color:white;">
-    Send
-  </button>
+  <button onclick="sendMessage()" style="background:#009688;color:white;">Send</button>
 
   <button onclick="backToMode()" style="background:#2196F3;color:white;">Back</button>
   <p id="admin-status" style="color:#f44336;font-weight:bold;"></p>
@@ -291,7 +191,6 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
       <button onclick="simSetNonZero()" style="background:#ff9800;color:white;padding:8px 12px;border-radius:6px;">Set non-zero</button>
       <button onclick="simFastForwardWin()" style="background:#9c27b0;color:white;padding:8px 12px;border-radius:6px;">Fast-forward win</button>
     </div>
-    <div style="margin-top:8px;color:#555;font-size:13px;">Notes: Use <strong>Enter Player</strong> to switch to player view. <strong>Fast-forward win</strong> will immediately trigger the win-screen if phonons are zero.</div>
   </div>
 </div>
 
@@ -300,7 +199,7 @@ canvas { border:2px solid #333; border-radius:8px; margin:10px; max-width:100%; 
   <div class="win-content">
     <div class="win-sparkles"></div>
     <h1 class="win-title">Hooray - You Won!</h1>
-    <p class="win-sub">No Phonons left in the system! Turns out, you are the hero sample you have been looking for ;)</p>
+    <p class="win-sub">No Phonons left in the system! Turns out, you are the HERO sample you have been looking for ;)</p>
     <button onclick="hideWinScreen()" class="win-button">Continue</button>
   </div>
 </div>
@@ -310,12 +209,14 @@ let ws = null;
 let currentMode = null;
 let dataBuffer = [];
 const MAX_POINTS = 200;
-// Stage logic
-let playerStage = 1; // 1 = magnitude stage, 2 = phonon stage
+let playerStage = 1;
 let magThreshold = 0.01;
 let magHoldMs = 1000;
 let holdStart = null;
 let holdAnimFrame = null;
+let winHoldMs = 3000;
+let winTimerStart = null;
+let winShown = false;
 
 function setParams() {
   const period = document.getElementById("period").value;
@@ -338,436 +239,335 @@ function sendMessage() {
 
 function connectWebSocket() {
   ws = new WebSocket('ws://' + window.location.hostname + ':81/');
-  
   ws.onopen = () => {
     document.getElementById('status').innerText = 'WebSocket Connected ✓';
-    // inform device of current stage on connect
     sendStageToDevice(playerStage);
   };
-  
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    // Handle stage broadcasts from device (do not echo back)
     if (data.type === 'stage' || data.type === 'stage_sync') {
       const s = parseInt(data.stage) || 1;
-      if (s === 1) {
-        // remote -> stage 1 (reset UI)
-        playerStage = 1;
-        holdStart = null;
-        if (document.getElementById('hold-fill')) document.getElementById('hold-fill').style.width = '0%';
-        document.getElementById('mag-screen').style.display = 'block';
-        document.getElementById('phonon-container').style.display = 'none';
-        const header = document.getElementById('nphonon-header'); if (header) header.style.display = 'none';
-      } else if (s === 2) {
-        // remote -> stage 2 (show phonons)
-        playerStage = 2;
-        document.getElementById('mag-screen').style.display = 'none';
-        document.getElementById('phonon-container').style.display = 'flex';
-        const header = document.getElementById('nphonon-header'); if (header) header.style.display = 'block';
-      } else if (s === 3) {
-        // remote -> persistent win screen
-        playerStage = 3;
-        winShown = true;
-        winTimerStart = null;
-        const el = document.getElementById('win-screen'); if (el) el.style.display = 'flex';
-      }
+      if (s === 1) { playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block'; } 
+      else if (s ===2) { playerStage=2; document.getElementById('mag-screen').style.display='none'; document.getElementById('plot').style.display='block'; }
+      else if (s===3) { playerStage=3; winShown=true; winTimerStart=null; document.getElementById('win-screen').style.display='flex'; }
       return;
     }
 
-    // Handle admin → player messages
-    if (data.type === "adminMessage") {
-      showPlayerMessage(data.text);
-      return;
-    }
+    if (data.type === "adminMessage") { showPlayerMessage(data.text); return; }
 
-    // Accept broadcasted config if present
-    if (data.mag_threshold !== undefined) {
-      magThreshold = parseFloat(data.mag_threshold);
-      const thrInput = document.getElementById('threshold');
-      if (thrInput) thrInput.value = magThreshold;
-    }
-    if (data.mag_hold !== undefined) {
-      magHoldMs = parseInt(data.mag_hold);
-      const holdInput = document.getElementById('hold');
-      if (holdInput) holdInput.value = magHoldMs;
-    }
+    if (data.mag_threshold !== undefined) { magThreshold = parseFloat(data.mag_threshold); document.getElementById('threshold').value = magThreshold; }
+    if (data.mag_hold !== undefined) { magHoldMs = parseInt(data.mag_hold); document.getElementById('hold').value = magHoldMs; }
+    if (data.win_hold !== undefined) { winHoldMs = parseInt(data.win_hold); document.getElementById('win_hold').value = winHoldMs; }
 
-    if (data.win_hold !== undefined) {
-      winHoldMs = parseInt(data.win_hold);
-      const winInput = document.getElementById('win_hold');
-      if (winInput) winInput.value = winHoldMs;
-    }
-
-
-    // Otherwise assume it's accelerometer data
     updatePlot(data);
   };
-  
-  ws.onclose = () => {
-    document.getElementById('status').innerText = 'Reconnecting...';
-    setTimeout(connectWebSocket, 1000);
-  };
-  
-  ws.onerror = (e) => {
-    document.getElementById('status').innerText = 'Connection Error';
-  };
+  ws.onclose = () => { document.getElementById('status').innerText = 'Reconnecting...'; setTimeout(connectWebSocket, 1000); };
+  ws.onerror = () => { document.getElementById('status').innerText = 'Connection Error'; };
 }
 
 function sendStageToDevice(stage) {
-  if (!ws || ws.readyState !== 1) return;
-  try {
-    ws.send(JSON.stringify({type: 'stage', stage: stage}));
-  } catch (e) {
-    console.warn('Could not send stage to device', e);
-  }
+  if (!ws || ws.readyState!==1) return;
+  ws.send(JSON.stringify({type:'stage', stage:stage}));
 }
 
-let lastValues = {x:0, y:0, z:0};
+let lastValues={x:0,y:0,z:0};
 function updatePlot(data) {
-  const SMOOTH = 0.05;
+  const SMOOTH=0.05;
+  lastValues.x += SMOOTH*(data.x-lastValues.x);
+  lastValues.y += SMOOTH*(data.y-lastValues.y);
+  lastValues.z += SMOOTH*(data.z-lastValues.z);
 
-  lastValues.x += SMOOTH * (data.x - lastValues.x);
-  lastValues.y += SMOOTH * (data.y - lastValues.y);
-  lastValues.z += SMOOTH * (data.z - lastValues.z);
-
-  // compute magnitude
-  const mag = Math.sqrt(lastValues.x*lastValues.x + lastValues.y*lastValues.y + lastValues.z*lastValues.z);
-
-  // Stage handling
+  const mag = Math.sqrt(lastValues.x**2 + lastValues.y**2 + lastValues.z**2);
   updateStage(mag, data);
 
-  dataBuffer.push({...lastValues});
-  if (dataBuffer.length > MAX_POINTS) dataBuffer.shift();
+  const total = (data.nphonon_x||0) + (data.nphonon_y||0) + (data.nphonon_z||0);
+  document.getElementById('total-phonons').innerText = "Phonons: " + total;
+
+  dataBuffer.push({total});
+  if(dataBuffer.length>MAX_POINTS) dataBuffer.shift();
   drawPlot();
 }
 
 function updateStage(mag, data) {
-  // Update magnitude screen
   document.getElementById('mag-value').innerText = mag.toFixed(2);
 
-  if (playerStage === 1) {
-    // show mag screen, hide phonons
-    document.getElementById('mag-screen').style.display = 'block';
-    document.getElementById('phonon-container').style.display = 'none';
-    document.getElementById('nphonon-header').style.display = 'none';
-
-    if (mag >= magThreshold) {
-      if (!holdStart) holdStart = Date.now();
-      startHoldAnimator();
-    } else {
-      holdStart = null;
-      document.getElementById('hold-fill').style.width = '0%';
-      stopHoldAnimator();
-    }
+  if(playerStage===1){
+    document.getElementById('mag-screen').style.display='block';
+    document.getElementById('plot').style.display='block';
+    if(mag>=magThreshold){ if(!holdStart) holdStart=Date.now(); startHoldAnimator(); }
+    else { holdStart=null; document.getElementById('hold-fill').style.width='0%'; stopHoldAnimator(); }
   }
-
-  if (playerStage === 2) {
-    // show phonons, hide mag screen
-    document.getElementById('mag-screen').style.display = 'none';
-    document.getElementById('phonon-container').style.display = 'flex';
-    document.getElementById('nphonon-header').style.display = 'block';
-    updatePhononBars(
-      data.nphonon_x || 0,
-      data.nphonon_y || 0,
-      data.nphonon_z || 0
-    );
-    // check for win condition when phonon stage is active
-    const total = (data.nphonon_x || 0) + (data.nphonon_y || 0) + (data.nphonon_z || 0);
-    checkWinCondition(total);
+  if(playerStage===2){
+    document.getElementById('mag-screen').style.display='none';
+    document.getElementById('plot').style.display='block';
+    checkWinCondition((data.nphonon_x||0)+(data.nphonon_y||0)+(data.nphonon_z||0));
   }
 }
 
 function startHoldAnimator() {
-  if (holdAnimFrame || !holdStart) return;
-  function step() {
-    if (!holdStart) { holdAnimFrame = null; return; }
-    const elapsed = Date.now() - holdStart;
-    const pct = Math.min(1, elapsed / magHoldMs);
-    const fill = document.getElementById('hold-fill');
-    if (fill) fill.style.width = (pct * 100) + '%';
-    if (elapsed >= magHoldMs) {
-      // progress to phonon stage
-      playerStage = 2;
-      holdStart = null;
-      if (fill) fill.style.width = '0%';
-      // ensure UI switches immediately
-      document.getElementById('mag-screen').style.display = 'none';
-      document.getElementById('phonon-container').style.display = 'flex';
-      const header = document.getElementById('nphonon-header');
-      if (header) header.style.display = 'block';
-      // notify device that player advanced to stage 2
-      sendStageToDevice(2);
-      holdAnimFrame = null;
-      return;
-    }
-    holdAnimFrame = requestAnimationFrame(step);
+  if(holdAnimFrame||!holdStart) return;
+  function step(){
+    const elapsed=Date.now()-holdStart;
+    const pct=Math.min(1,elapsed/magHoldMs);
+    const fill=document.getElementById('hold-fill'); if(fill) fill.style.width=(pct*100)+'%';
+    if(elapsed>=magHoldMs){ playerStage=2; holdStart=null; if(fill) fill.style.width='0%'; document.getElementById('mag-screen').style.display='none'; document.getElementById('plot').style.display='block'; sendStageToDevice(2); holdAnimFrame=null; return; }
+    holdAnimFrame=requestAnimationFrame(step);
   }
-  holdAnimFrame = requestAnimationFrame(step);
+  holdAnimFrame=requestAnimationFrame(step);
 }
 
-function stopHoldAnimator() {
-  if (holdAnimFrame) { cancelAnimationFrame(holdAnimFrame); holdAnimFrame = null; }
+function stopHoldAnimator(){ if(holdAnimFrame){ cancelAnimationFrame(holdAnimFrame); holdAnimFrame=null; } }
+
+function checkWinCondition(totalPhonons){
+  if(currentMode!=='player') return;
+  if(totalPhonons===0){
+    if(!winTimerStart) winTimerStart=Date.now();
+    if(Date.now()-winTimerStart>=winHoldMs && !winShown) showWinScreen();
+  } else { winTimerStart=null; if(winShown) hideWinScreen(); }
 }
 
-// Win detection variables and functions
-let winHoldMs = 3000; // default: 3s
-let winTimerStart = null;
-let winShown = false;
-
-function checkWinCondition(totalPhonons) {
-  // Only operate when player is in player mode
-  if (currentMode !== 'player') return;
-
-  if (totalPhonons === 0) {
-    if (!winTimerStart) winTimerStart = Date.now();
-    const elapsed = Date.now() - winTimerStart;
-    if (elapsed >= winHoldMs && !winShown) showWinScreen();
-  } else {
-    // reset timer and hide if phonons return
-    winTimerStart = null;
-    if (winShown) hideWinScreen();
-  }
-}
-
-function showWinScreen() {
-  winShown = true;
-  const el = document.getElementById('win-screen');
-  if (!el) return;
-  el.style.display = 'flex';
-
-  // progress to stage 3
-  playerStage = 3;
-  // notify device that player advanced to stage 3
-  sendStageToDevice(3);
-}
-
-function hideWinScreen() {
-  winShown = false;
-  winTimerStart = null;
-  const el = document.getElementById('win-screen');
-  if (!el) return;
-  el.style.display = 'none';
-}
-
-// --- Simulator JS ---
-let simInterval = null;
-function simSendSample() {
-  const px = parseInt(document.getElementById('sim-px').value) || 0;
-  const py = parseInt(document.getElementById('sim-py').value) || 0;
-  const pz = parseInt(document.getElementById('sim-pz').value) || 0;
-  // small random accel jitter
-  const ax = (Math.random() - 0.5) * 0.6;
-  const ay = (Math.random() - 0.5) * 0.6;
-  const az = (Math.random() - 0.5) * 0.6;
-  updatePlot({x: ax, y: ay, z: az, nphonon_x: px, nphonon_y: py, nphonon_z: pz});
-}
-
-function simSetZero() {
-  document.getElementById('sim-px').value = 0;
-  document.getElementById('sim-py').value = 0;
-  document.getElementById('sim-pz').value = 0;
-  simSendSample();
-}
-
-function simSetNonZero() {
-  document.getElementById('sim-px').value = 6;
-  document.getElementById('sim-py').value = 3;
-  document.getElementById('sim-pz').value = 1;
-  simSendSample();
-}
-
-function simFastForwardWin() {
-  // Make timer appear as if winHoldMs already elapsed
-  winTimerStart = Date.now() - winHoldMs - 50;
-  // ensure player mode and phonons are zero when triggering
-  const total = 0;
-  checkWinCondition(total);
-}
-
-function simToggleAuto() {
-  const cb = document.getElementById('sim-auto');
-  const rate = parseInt(document.getElementById('sim-rate').value) || 250;
-  if (simInterval) { clearInterval(simInterval); simInterval = null; cb.checked = false; return; }
-  cb.checked = true;
-  simInterval = setInterval(() => {
-    const px = parseInt(document.getElementById('sim-px').value) || 0;
-    const py = parseInt(document.getElementById('sim-py').value) || 0;
-    const pz = parseInt(document.getElementById('sim-pz').value) || 0;
-    const ax = (Math.random() - 0.5) * 1.0;
-    const ay = (Math.random() - 0.5) * 1.0;
-    const az = (Math.random() - 0.5) * 1.0;
-    updatePlot({x: ax, y: ay, z: az, nphonon_x: px, nphonon_y: py, nphonon_z: pz});
-  }, rate);
-}
-
+function showWinScreen(){ winShown=true; document.getElementById('win-screen').style.display='flex'; playerStage=3; sendStageToDevice(3); }
+function hideWinScreen(){ winShown=false; winTimerStart=null; document.getElementById('win-screen').style.display='none'; }
 
 function drawPlot() {
   const canvas = document.getElementById('plot');
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
-  
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
-  
+  ctx.clearRect(0, 0, w, h);
+
   if (dataBuffer.length < 2) return;
-  
+
+  const PADDING = 0.1; // 10% extra above/below
   let minVal = Infinity, maxVal = -Infinity;
-  dataBuffer.forEach(p => {
-    minVal = Math.min(minVal, p.x, p.y, p.z);
-    maxVal = Math.max(maxVal, p.x, p.y, p.z);
+
+  // Clamp totals to non-negative integers
+  dataBuffer.forEach(p => { 
+    p.total = Math.max(0, Math.round(p.total)); 
+    minVal = Math.min(minVal, p.total); 
+    maxVal = Math.max(maxVal, p.total); 
   });
-  if (maxVal === minVal) { maxVal += 1; minVal -= 1; }
-  
+
+  // Ensure minVal is at least -1 so the line at 1 is always visible
+  minVal = Math.min(minVal, -1);
+
+  if (maxVal === minVal) { maxVal += 1; }
+
+  // Add padding
+  const range = maxVal - minVal;
+  maxVal += range * PADDING;
+  minVal -= range * PADDING;
+
   const scaleX = w / Math.max(1, dataBuffer.length - 1);
   const scaleY = h / (maxVal - minVal);
-  
+
+  // Background "temperature" as color (fixed scale 0 → 100 phonons)
+  const latest = dataBuffer[dataBuffer.length - 1].total || 0;
+  // clamp to [0, 100] and normalize
+  //const heatPct = Math.min(1, Math.max(0, latest / 100));
+  // color mapping: cold (blue/green) → hot (red)
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  let r, g, b;
+
+  if (latest <= 100) {
+    const t = Math.max(0, Math.min(1, latest / 100)); // 0..1
+
+    // blue -> red
+    r = lerp(0, 255, t);
+    g = 0;
+    b = lerp(255, 0, t);
+
+  } else {
+    // slow pulse
+    const pulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * 2 * (performance.now() / 1000));
+
+    // red -> purple
+    r = 255;
+    g = 0;
+    b = lerp(0, 255, pulse);
+  }
+
+  ctx.fillStyle = `rgba(${r|0},${g},${b|0},0.3)`;
+  ctx.fillRect(0, 0, w, h);
+
+  // Shade area below 1
+  const oneY = h - ((1 - minVal) * scaleY);
+  ctx.fillStyle = 'rgba(0, 128, 255, 0.1)'; // light blue shade
+  ctx.fillRect(0, oneY, w, h - oneY);
+
   // Grid
-  ctx.strokeStyle = '#eee'; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
   for (let i = 0; i < 5; i++) {
-    ctx.moveTo(0, i * h / 5); ctx.lineTo(w, i * h / 5);
+    ctx.moveTo(0, i * h / 5);
+    ctx.lineTo(w, i * h / 5);
   }
   ctx.stroke();
-  
-  // Lines
-  function drawLine(key, color) {
-    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
-    dataBuffer.forEach((p, i) => {
-      const x = i * scaleX;
-      const y = h - ((p[key] - minVal) * scaleY);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  }
-  drawLine('x', '#e74c3c'); drawLine('y', '#2ecc71'); drawLine('z', '#3498db');
-  
-  // Zero line
-  ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.beginPath();
-  const zeroY = h - ((0 - minVal) * scaleY);
-  ctx.moveTo(0, zeroY); ctx.lineTo(w, zeroY); ctx.stroke();
-}
 
-function showScreen(id) {
-  document.getElementById('screen-mode').style.display = 'none';
-  document.getElementById('screen-player').style.display = 'none';
-  document.getElementById('screen-admin').style.display = 'none';
-  document.getElementById(id).style.display = 'block';
-}
-
-function enterPlayer() { currentMode = 'player'; showScreen('screen-player'); resetPlayerStage(); }
-function enterAdmin() { currentMode = 'admin'; showScreen('screen-admin'); }
-function backToMode() { currentMode = null; showScreen('screen-mode'); resetPlayerStage(); }
-
-function resetPlayerStage() {
-  playerStage = 1;
-  holdStart = null;
-  document.getElementById('hold-fill').style.width = '0%';
-  document.getElementById('mag-screen').style.display = 'block';
-  document.getElementById('phonon-container').style.display = 'none';
-  const header = document.getElementById('nphonon-header');
-  if (header) header.style.display = 'none';
-  // notify device that player returned to stage 1
-  sendStageToDevice(1);
-}
-
-function adminAction(cmd) {
-  fetch("/admin?cmd=" + encodeURIComponent(cmd))
-    .then(r => r.text())
-    .then(t => document.getElementById("admin-status").innerText = t);
-}
-
-let messageTimeout = null;
-
-function showPlayerMessage(text) {
-  // Only show in player mode
-  if (currentMode !== 'player') return;
-
-  const box = document.getElementById("playerMessage");
-  box.innerText = text;
-  box.style.display = "block";
-  box.style.opacity = "1";
-
-  if (messageTimeout) clearTimeout(messageTimeout);
-
-  messageTimeout = setTimeout(() => {
-    box.style.opacity = "0";
-    setTimeout(() => box.style.display = "none", 300);
-  }, 3000);
-}
-
-// Log scale config
-const PHONON_MIN = 0.4;
-const PHONON_MAX = 200; // corresponds to top tick (1k)
-
-function phononToPct(value) {
-  const v = Math.max(PHONON_MIN, value);
-  const logMin = Math.log10(PHONON_MIN);
-  const logMax = Math.log10(PHONON_MAX);
-  const logVal = Math.log10(v);
-  return (logVal - logMin) / (logMax - logMin);
-}
-
-function buildPhononTicks(containerId, values) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = "";
-
-  values.forEach(v => {
-    const pct = phononToPct(v);
-    if (pct < 0 || pct > 1) return;
-
-    const tick = document.createElement("div");
-    tick.className = "phonon-tick";
-    tick.style.bottom = (pct * 100) + "%";
-
-    const label = document.createElement("span");
-    label.innerText = v >= 1000 ? (v / 1000) + "k" : v;
-
-    tick.appendChild(label);
-    container.appendChild(tick);
+  // Trace with glow
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.6)`;
+  ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  dataBuffer.forEach((p, i) => {
+    const x = i * scaleX;
+    const y = h - ((p.total - minVal) * scaleY);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Reference line at 1
+  ctx.strokeStyle = '#999';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, oneY);
+  ctx.lineTo(w, oneY);
+  ctx.stroke();
+
+  // Y-axis labels (integers only)
+  // ctx.fillStyle = '#555';
+  // ctx.font = '12px Arial';
+  // ctx.textAlign = 'right';
+  // ctx.textBaseline = 'middle';
+  // for (let i = 0; i <= 5; i++) {
+  //   const val = Math.max(0, Math.round(minVal + (range + 2*range*PADDING) * (i / 5)));
+  //   const y = h - i * h / 5;
+  //   ctx.fillText(val, w - 4, y);
+  // }
 }
 
-function updatePhononBars(px, py, pz) {
-  setLogBar("px", px);
-  setLogBar("py", py);
-  setLogBar("pz", pz);
-}
+function drawCantilever(totalPhonons) {
+  const canvas = document.getElementById('cantilever');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-function setLogBar(prefix, value) {
-  const fill = document.getElementById(prefix + "-fill");
-  const label = document.getElementById(prefix + "-val");
+  // Instantaneous amplitude (smoothed values)
+  const x = lastValues.x || 0;
+  const y = lastValues.y || 0;
+  const z = lastValues.z || 0;
 
-  label.innerText = value;
+  // Base amplitude scaling
+  const maxPhonons = 100
+  const baseAmplitude = Math.min(90, 90 * (0.5 + Math.sqrt(totalPhonons)) / Math.sqrt(maxPhonons));
 
-  const pct = phononToPct(value);
-  const clamped = Math.max(0, Math.min(1, pct));
+  // Cantilever pivot and dimensions
+  const pivotX = 125;
+  const pivotY = 100;
+  const length = 250;
+  const steps = 50;
 
-  fill.style.height = (clamped * 100) + "%";
-}
+  const beta = 1.87510407;
+  const C = (Math.cosh(beta) + Math.cos(beta)) / (Math.sinh(beta) + Math.sin(beta));
 
+  // Decide number of cantilevers
+  const cantileverCount = totalPhonons < 1 ? 2 : 1;
+  
+  for (let n = 0; n < cantileverCount; n++) {
+    // Phase: 0 for first, 180° for second
+    const phase = n * Math.PI;
+    // Transparency for second cantilever
+    ctx.globalAlpha = cantileverCount === 2 ? 0.6 : 1;
 
-// Init
-window.onload = () => {
-  connectWebSocket();
+    // Tip displacement as sine wave
+    const tipDisplacement = baseAmplitude * Math.sin(2 * Math.PI * 1 * (performance.now() / 1000) + phase);
 
-  const tickValues = [1, 10, 100];
+    // Draw cantilever beam
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
 
-  buildPhononTicks("px-ticks", tickValues);
-  // init admin inputs for threshold/hold
-  const thrInput = document.getElementById('threshold');
-  if (thrInput) thrInput.value = magThreshold;
-  const holdInput = document.getElementById('hold');
-  if (holdInput) holdInput.value = magHoldMs;
-  // init win hold input
-  const winInput = document.getElementById('win_hold');
-  if (winInput) {
-    winInput.value = winHoldMs;
-    winInput.addEventListener('change', () => {
-      winHoldMs = parseInt(winInput.value || winHoldMs);
-    });
+    let prevX = pivotX, prevY = pivotY;
+    let tipX = pivotX, tipY = pivotY;
+
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const yNorm = Math.cosh(beta * t) - Math.cos(beta * t) - C * (Math.sinh(beta * t) - Math.sin(beta * t));
+      const xPos = pivotX + t * length;
+      const yPos = pivotY - (yNorm / 2) * tipDisplacement;
+      ctx.lineTo(xPos, yPos);
+
+      if (i === steps - 1) {
+        prevX = xPos;
+        prevY = yPos;
+      }
+      if (i === steps) {
+        tipX = xPos;
+        tipY = yPos;
+      }
+    }
+    ctx.stroke();
+
+    // Draw triangle at tip, aligned with beam
+    const dx = tipX - prevX;
+    const dy = tipY - prevY;
+    const angle = Math.atan2(dy, dx);
+
+    const triWidth = 20;
+    const triHeight = 15;
+    ctx.fillStyle = '#7393B3';
+    ctx.save();
+    ctx.translate(tipX, tipY);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-triWidth, 0);          // left top corner
+    ctx.lineTo(0, 0);                  // right top corner touches beam tip
+    ctx.lineTo(-triWidth/2, triHeight); // tip pointing "down"
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
-  // simulator init
-  const simAuto = document.getElementById('sim-auto');
-  if (simAuto) simAuto.addEventListener('change', simToggleAuto);
+
+  // Reset alpha
+  ctx.globalAlpha = 1;
+
+  // Draw fixed base
+  ctx.fillStyle = '#555';
+  ctx.fillRect(pivotX - 100, pivotY - 3, 100, 50);
+}
+
+// Animate continuously
+function animateCantilever() {
+  const totalPhonons = Math.max(0, Math.round(
+    (dataBuffer.length && dataBuffer[dataBuffer.length-1].total) || 0
+  ));
+  drawCantilever(totalPhonons);
+  requestAnimationFrame(animateCantilever);
+}
+
+// Start animation
+animateCantilever();
+
+function showScreen(id){ document.getElementById('screen-mode').style.display='none'; document.getElementById('screen-player').style.display='none'; document.getElementById('screen-admin').style.display='none'; document.getElementById(id).style.display='block'; }
+function enterPlayer(){ currentMode='player'; showScreen('screen-player'); resetPlayerStage(); }
+function enterAdmin(){ currentMode='admin'; showScreen('screen-admin'); }
+function backToMode(){ currentMode=null; showScreen('screen-mode'); resetPlayerStage(); }
+function resetPlayerStage(){ playerStage=1; holdStart=null; document.getElementById('hold-fill').style.width='0%'; document.getElementById('mag-screen').style.display='block'; document.getElementById('plot').style.display='block'; sendStageToDevice(1); }
+function adminAction(cmd){ fetch("/admin?cmd="+encodeURIComponent(cmd)).then(r=>r.text()).then(t=>document.getElementById("admin-status").innerText=t); }
+
+let messageTimeout=null;
+function showPlayerMessage(text){
+  if(currentMode!=='player') return;
+  const box=document.getElementById("playerMessage"); box.innerText=text; box.style.display="block"; box.style.opacity="1";
+  if(messageTimeout) clearTimeout(messageTimeout);
+  messageTimeout=setTimeout(()=>{ box.style.opacity="0"; setTimeout(()=>box.style.display="none",300); },3000);
+}
+
+// Simulator functions remain the same
+function simSendSample(){ const px=parseInt(document.getElementById('sim-px').value)||0; const py=parseInt(document.getElementById('sim-py').value)||0; const pz=parseInt(document.getElementById('sim-pz').value)||0; const ax=(Math.random()-0.5)*0.6; const ay=(Math.random()-0.5)*0.6; const az=(Math.random()-0.5)*0.6; updatePlot({x:ax,y:ay,z:az,nphonon_x:px,nphonon_y:py,nphonon_z:pz}); }
+function simSetZero(){ document.getElementById('sim-px').value=0; document.getElementById('sim-py').value=0; document.getElementById('sim-pz').value=0; simSendSample(); }
+function simSetNonZero(){ document.getElementById('sim-px').value=6; document.getElementById('sim-py').value=3; document.getElementById('sim-pz').value=1; simSendSample(); }
+function simFastForwardWin(){ winTimerStart=Date.now()-winHoldMs-50; checkWinCondition(0); }
+let simInterval=null;
+function simToggleAuto(){ const cb=document.getElementById('sim-auto'); const rate=parseInt(document.getElementById('sim-rate').value)||250; if(simInterval){ clearInterval(simInterval); simInterval=null; cb.checked=false; return; } cb.checked=true; simInterval=setInterval(()=>{ const px=parseInt(document.getElementById('sim-px').value)||0; const py=parseInt(document.getElementById('sim-py').value)||0; const pz=parseInt(document.getElementById('sim-pz').value)||0; const ax=(Math.random()-0.5)*1.0; const ay=(Math.random()-0.5)*1.0; const az=(Math.random()-0.5)*1.0; updatePlot({x:ax,y:ay,z:az,nphonon_x:px,nphonon_y:py,nphonon_z:pz}); }, rate); }
+
+window.onload=()=>{
+  connectWebSocket();
 };
 </script>
-</body></html>
+</body>
+</html>
